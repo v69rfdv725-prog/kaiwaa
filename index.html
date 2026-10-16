@@ -1,178 +1,192 @@
-let bookData = JSON.parse(localStorage.getItem('myKaiwaBook'));
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Buku Kaiwa & Kanji Mandiri</title>
+    <style>
+        :root { --primary: #2c3e50; --accent: #3498db; --light: #ecf0f1; --dark: #34495e; --border: #bdc3c7; }
+        body { font-family: 'Segoe UI', sans-serif; margin: 0; padding: 0; background-color: #f7f9fa; color: var(--dark); display: flex; flex-direction: column; height: 100vh; }
+        header { background: var(--primary); color: white; padding: 15px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        .book-container { display: flex; flex: 1; overflow: hidden; }
+        .sidebar { width: 280px; background: white; border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 15px; box-sizing: border-box; overflow-y: auto; }
+        .sidebar h3 { margin-top: 0; border-bottom: 2px solid var(--accent); padding-bottom: 8px; color: var(--primary); }
+        .chapter-list { list-style: none; padding: 0; margin: 0; }
+        .chapter-item { padding: 12px; border-radius: 6px; margin-bottom: 8px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border); background: #fafafa; transition: 0.2s; }
+        .chapter-item:hover { background: var(--light); }
+        .chapter-item.active { background: #e3f2fd; border-color: var(--accent); font-weight: bold; }
+        .chapter-title-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 140px; }
+        .main-content { flex: 1; padding: 25px; box-sizing: border-box; overflow-y: auto; display: flex; flex-direction: column; gap: 20px; }
+        .input-box { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); border: 1px solid var(--border); }
+        .form-group { margin-bottom: 12px; }
+        .form-group label { display: block; margin-bottom: 5px; font-weight: bold; font-size: 14px; }
+        input[type="text"], textarea { width: 100%; padding: 10px; box-sizing: border-box; border: 1px solid var(--border); border-radius: 6px; font-size: 15px; }
+        textarea { height: 80px; resize: vertical; }
+        .btn-group { display: flex; gap: 10px; margin-top: 10px; }
+        button { background: var(--accent); color: white; border: none; padding: 12px 15px; font-size: 15px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        button:hover { opacity: 0.9; }
+        .btn-add-chap { background: var(--primary); margin-bottom: 15px; width: 100%; }
+        .btn-del { background: #e74c3c; width: auto; padding: 6px 10px; font-size: 12px; margin-top: 0; }
+        .book-page { background: #fffcf5; border: 1px solid #f1e5c9; padding: 25px; border-radius: 4px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); min-height: 200px; }
+        .kaiwa-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 1px dashed #e6dbb9; }
+        .kaiwa-text { line-height: 3; font-size: 24px; flex: 1; }
+        .btn-del-kaiwa { background: #e74c3c; padding: 5px 10px; font-size: 12px; height: fit-content; margin-left: 10px; }
+        ruby { ruby-position: over; font-size: 26px; cursor: pointer; padding: 0 4px; border-radius: 4px; transition: 0.2s; }
+        ruby:hover { background-color: #e1f5fe; }
+        rt { font-size: 13px; color: #555; user-select: none; font-weight: normal; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 1000; }
+        .modal-content { background: white; padding: 25px; border-radius: 8px; width: 90%; max-width: 400px; }
+        .footer-backup { display: flex; flex-direction: column; gap: 5px; margin-top: auto; padding-top: 15px; border-top: 1px solid var(--border); }
+        .btn-backup { background: #2ecc71; font-size: 12px; padding: 6px; }
+        .btn-restore { background: #f39c12; font-size: 12px; padding: 6px; }
+        .btn-reset { background: #95a5a6; font-size: 11px; padding: 5px; margin-top: 5px; }
+        @media (max-width: 768px) {
+            .book-container { flex-direction: column; }
+            .sidebar { width: 100%; height: 320px; border-right: none; border-bottom: 1px solid var(--border); }
+        }
+    </style>
+</head>
+<body>
 
-if (!bookData || !Array.isArray(bookData) || bookData.length === 0) {
-    bookData = [{ id: 1, title: 'irodori a2/1 bab1', kaiwas: [] }];
-    localStorage.setItem('myKaiwaBook', JSON.stringify(bookData));
-}
+<header>
+    <h2>📚 Buku Kumpulan Kaiwa & Kamus Radikal Mandiri</h2>
+</header>
 
-let kanjiDB = JSON.parse(localStorage.getItem('myKanjiDB')) || {};
-let activeChapterId = bookData[0].id; // Dijamin langsung membaca ID pertama tanpa error
-let activeKanji = '';
-
-window.onload = function() {
-    renderSidebar();
-    loadChapter(activeChapterId);
-};
-
-function isKanji(ch) { return (ch >= '\u4e00' && ch <= '\u9faf') || (ch >= '\u3400' && ch <= '\u4dbf'); }
-
-function createNewChapter() {
-    const newId = Date.now();
-    const newChapter = {
-        id: newId,
-        title: `Bab Baru ${bookData.length + 1}`,
-        kaiwas: []
-    };
-    bookData.push(newChapter);
-    saveToLocalStorage();
-    renderSidebar();
-    loadChapter(newId);
-}
-
-function updateChapterTitle() {
-    const ch = bookData.find(c => c.id === activeChapterId);
-    if(ch) {
-        ch.title = document.getElementById('chapterTitle').value;
-        document.getElementById('pageTitle').textContent = ch.title;
-        saveToLocalStorage();
-        const activeLi = document.querySelector(`.chapter-item.active .chapter-title-text`);
-        if(activeLi) activeLi.textContent = ch.title;
-    }
-}
-
-function addKaiwaToChapter() {
-    const input = document.getElementById('kaiwaInput').value.trim();
-    if(!input) {
-        alert("Ketik kalimat kaiwa terlebih dahulu!");
-        return;
-    }
-    const ch = bookData.find(c => c.id === activeChapterId);
-    if(ch) {
-        if(!ch.kaiwas) ch.kaiwas = [];
-        ch.kaiwas.push(input);
-        document.getElementById('kaiwaInput').value = '';
-        saveToLocalStorage();
-        renderPageContent(ch);
-    } else {
-        alert("Silakan pilih bab di daftar isi terlebih dahulu!");
-    }
-}
-
-function renderSidebar() {
-    const list = document.getElementById('chapterList');
-    list.innerHTML = '';
-    bookData.forEach(ch => {
-        const li = document.createElement('li');
-        li.className = `chapter-item ${ch.id === activeChapterId ? 'active' : ''}`;
-        li.onclick = function() { loadChapter(ch.id); };
+<div class="book-container">
+    <div class="sidebar">
+        <h3>Daftar Isi Bab</h3>
+        <button class="btn-add-chap" onclick="createNewChapter()">+ Buat Bab Baru</button>
+        <ul id="chapterList" class="chapter-list"></ul>
         
-        const titleSpan = document.createElement('span');
-        titleSpan.className = 'chapter-title-text';
-        titleSpan.textContent = ch.title;
-        
-        const delBtn = document.createElement('button');
-        delBtn.textContent = 'Hapus';
-        delBtn.className = 'btn-del';
-        delBtn.onclick = function(e) {
-            e.stopPropagation();
-            deleteChapter(ch.id);
-        };
-        
-        li.appendChild(titleSpan);
-        li.appendChild(delBtn);
-        list.appendChild(li);
-    });
-}
+        <div class="footer-backup">
+            <button class="btn-backup" onclick="exportData()">💾 Cadangkan (Ekspor) Data</button>
+            <button class="btn-restore" onclick="document.getElementById('importFile').click()">📂 Pulihkan (Impor) Data</button>
+            <input type="file" id="importFile" style="display:none" onchange="importData(this)">
+            <button class="btn-reset" onclick="resetAplikasiTotal()">⚠️ Reset Total Aplikasi</button>
+        </div>
+    </div>
 
-function loadChapter(id) {
-    activeChapterId = id;
-    renderSidebar();
-    const ch = bookData.find(c => c.id === id);
-    if(ch) {
-        document.getElementById('chapterTitle').value = ch.title || '';
-        document.getElementById('pageTitle').textContent = ch.title || 'Tanpa Judul';
-        renderPageContent(ch);
+    <div class="main-content">
+        <div class="input-box" id="editorArea">
+            <div class="form-group">
+                <label for="chapterTitle">Judul Bab saat ini:</label>
+                <input type="text" id="chapterTitle" oninput="updateChapterTitle()" placeholder="Contoh: Bab 1 - Perkenalan Diri">
+            </div>
+            <div class="form-group">
+                <label for="kaiwaInput">Tambahkan Percakapan (Kaiwa) Baru:</label>
+                <textarea id="kaiwaInput" placeholder="Ketik kalimat jepang di sini..."></textarea>
+            </div>
+            <button style="width: 100%; background-color: #2ecc71;" onclick="addKaiwaToChapter()">Masukkan ke dalam Bab</button>
+        </div>
+
+        <div class="book-page">
+            <h2 id="pageTitle" style="text-align:left; border-bottom:2px solid var(--primary); padding-bottom:10px; margin-top:0;">Silakan pilih atau buat bab baru</h2>
+            <div id="pageContent"></div>
+        </div>
+    </div>
+</div>
+
+<div id="kanjiModal" class="modal">
+    <div class="modal-content">
+        <h3 id="modalKanjiTitle" style="margin-top:0;">Pengaturan Kanji</h3>
+        <div class="form-group">
+            <label>Cara Baca (Furigana):</label>
+            <input type="text" id="inputFurigana" placeholder="Contoh: わたし">
+        </div>
+        <div class="form-group">
+            <label>Arti Radikal (Buatan Sendiri):</label>
+            <textarea id="inputRadikal" placeholder="Contoh: Orang, Mandiri"></textarea>
+        </div>
+        <div class="btn-group">
+            <button onclick="saveKanjiData()">Simpan</button>
+            <button style="background:#bdc3c7; color:#333;" onclick="closeModal()">Batal</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let bookData = JSON.parse(localStorage.getItem('myKaiwaBook'));
+    if (!bookData || !Array.isArray(bookData) || bookData.length === 0) {
+        bookData = [{ id: 1, title: 'irodori a2/1 bab1', kaiwas: [] }];
+        localStorage.setItem('myKaiwaBook', JSON.stringify(bookData));
     }
-}
-
-function renderPageContent(ch) {
-    const container = document.getElementById('pageContent');
-    container.innerHTML = '';
     
-    if(!ch.kaiwas || ch.kaiwas.length === 0) {
-        container.innerHTML = '<p style="color:#888; font-style:italic;">Bab ini masih kosong. Silakan masukkan kalimat kaiwa baru di atas.</p>';
-        return;
-    }
+    let kanjiDB = JSON.parse(localStorage.getItem('myKanjiDB')) || {};
+    let activeChapterId = bookData[0].id; 
+    let activeKanji = '';
 
-    ch.kaiwas.forEach((kaiwaText) => {
-        const row = document.createElement('div');
-        row.className = 'kaiwa-row';
-        
-        for (let char of kaiwaText) {
-            if (isKanji(char)) {
-                const data = kanjiDB[char] || { furigana: '', radikal: '' };
-                const ruby = document.createElement('ruby');
-                ruby.textContent = char;
-                ruby.onclick = function() { openKanjiModal(char); };
-                
-                const rt = document.createElement('rt');
-                rt.textContent = data.furigana || '';
-                if(data.radikal) ruby.title = `Arti Radikal: ${data.radikal}`;
-                
-                ruby.appendChild(rt);
-                row.appendChild(ruby);
-            } else {
-                row.appendChild(document.createTextNode(char));
-            }
-        }
-        container.appendChild(row);
-    });
-}
-
-function deleteChapter(id) {
-    if(confirm("Apakah Anda yakin ingin menghapus bab ini?")) {
-        bookData = bookData.filter(c => c.id !== id);
-        if(bookData.length === 0) {
-            bookData = [{ id: Date.now(), title: 'Bab 1', kaiwas: [] }];
-        }
-        saveToLocalStorage();
-        activeChapterId = bookData[0].id;
+    window.onload = function() {
+        renderSidebar();
         loadChapter(activeChapterId);
+    };
+
+    function isKanji(ch) { return (ch >= '\u4e00' && ch <= '\u9faf') || (ch >= '\u3400' && ch <= '\u4dbf'); }
+
+    function saveToLocalStorage() {
+        localStorage.setItem('myKaiwaBook', JSON.stringify(bookData));
     }
-}
 
-function openKanjiModal(kanji) {
-    activeKanji = kanji;
-    document.getElementById('modalKanjiTitle').textContent = `Pengaturan Kanji: ${kanji}`;
-    const existingData = kanjiDB[kanji] || { furigana: '', radikal: '' };
-    document.getElementById('inputFurigana').value = existingData.furigana;
-    document.getElementById('inputRadikal').value = existingData.radikal;
-    document.getElementById('kanjiModal').style.display = 'flex';
-}
+    function renderSidebar() {
+        const list = document.getElementById('chapterList');
+        list.innerHTML = '';
+        bookData.forEach(ch => {
+            const li = document.createElement('li');
+            li.className = `chapter-item ${ch.id === activeChapterId ? 'active' : ''}`;
+            li.onclick = () => loadChapter(ch.id);
 
-function closeModal() { document.getElementById('kanjiModal').style.display = 'none'; }
+            const textSpan = document.createElement('span');
+            textSpan.className = 'chapter-title-text';
+            textSpan.textContent = ch.title;
 
-function saveKanjiData() {
-    const furigana = document.getElementById('inputFurigana').value.trim();
-    const radikal = document.getElementById('inputRadikal').value.trim();
-    kanjiDB[activeKanji] = { furigana, radikal };
-    localStorage.setItem('myKanjiDB', JSON.stringify(kanjiDB));
-    closeModal();
-    const ch = bookData.find(c => c.id === activeChapterId);
-    if(ch) renderPageContent(ch);
-}
+            const delBtn = document.createElement('button');
+            delBtn.className = 'btn-del';
+            delBtn.textContent = 'Hapus';
+            delBtn.onclick = (e) => {
+                e.stopPropagation();
+                deleteChapter(ch.id);
+            };
 
-function saveToLocalStorage() {
-    localStorage.setItem('myKaiwaBook', JSON.stringify(bookData));
-}
-
-function resetAplikasiTotal() {
-    if(confirm("Reset aplikasi?")) {
-        localStorage.clear();
-        location.reload();
+            li.appendChild(textSpan);
+            li.appendChild(delBtn);
+            list.appendChild(li);
+        });
     }
-}
 
-// Menjalankan inisialisasi awal secara paksa agar tombol langsung aktif
-renderSidebar();
-loadChapter(activeChapterId);
+    function createNewChapter() {
+        const newId = Date.now();
+        const newChapter = {
+            id: newId,
+            title: `Bab Baru ${bookData.length + 1}`,
+            kaiwas: []
+        };
+        bookData.push(newChapter);
+        saveToLocalStorage();
+        activeChapterId = newId;
+        renderSidebar();
+        loadChapter(newId);
+    }
+
+    function deleteChapter(id) {
+        if(bookData.length <= 1) {
+            alert("Harus ada minimal 1 Bab di dalam buku!");
+            return;
+        }
+        if(confirm("Apakah Anda yakin ingin menghapus Bab ini beserta isinya?")) {
+            bookData = bookData.filter(ch => ch.id !== id);
+            saveToLocalStorage();
+            if(activeChapterId === id) {
+                activeChapterId = bookData[0].id;
+            }
+            renderSidebar();
+            loadChapter(activeChapterId);
+        }
+    }
+
+    function updateChapterTitle() {
+        const ch = bookData.find(c => c.id === activeChapterId);
+        if(ch) {
+            ch.title = document.getElementById('chapterTitle').value;
+            document.getElementById('pageTitle').textContent = ch.title;
+            saveToLocalStorage();
+            
+            // Perbarui teks di sidebar secara real-time tanpa merusak fokus input
