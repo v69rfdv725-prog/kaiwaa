@@ -1,0 +1,178 @@
+let bookData = JSON.parse(localStorage.getItem('myKaiwaBook'));
+
+if (!bookData || !Array.isArray(bookData) || bookData.length === 0) {
+    bookData = [{ id: 1, title: 'irodori a2/1 bab1', kaiwas: [] }];
+    localStorage.setItem('myKaiwaBook', JSON.stringify(bookData));
+}
+
+let kanjiDB = JSON.parse(localStorage.getItem('myKanjiDB')) || {};
+let activeChapterId = bookData[0].id; // Dijamin langsung membaca ID pertama tanpa error
+let activeKanji = '';
+
+window.onload = function() {
+    renderSidebar();
+    loadChapter(activeChapterId);
+};
+
+function isKanji(ch) { return (ch >= '\u4e00' && ch <= '\u9faf') || (ch >= '\u3400' && ch <= '\u4dbf'); }
+
+function createNewChapter() {
+    const newId = Date.now();
+    const newChapter = {
+        id: newId,
+        title: `Bab Baru ${bookData.length + 1}`,
+        kaiwas: []
+    };
+    bookData.push(newChapter);
+    saveToLocalStorage();
+    renderSidebar();
+    loadChapter(newId);
+}
+
+function updateChapterTitle() {
+    const ch = bookData.find(c => c.id === activeChapterId);
+    if(ch) {
+        ch.title = document.getElementById('chapterTitle').value;
+        document.getElementById('pageTitle').textContent = ch.title;
+        saveToLocalStorage();
+        const activeLi = document.querySelector(`.chapter-item.active .chapter-title-text`);
+        if(activeLi) activeLi.textContent = ch.title;
+    }
+}
+
+function addKaiwaToChapter() {
+    const input = document.getElementById('kaiwaInput').value.trim();
+    if(!input) {
+        alert("Ketik kalimat kaiwa terlebih dahulu!");
+        return;
+    }
+    const ch = bookData.find(c => c.id === activeChapterId);
+    if(ch) {
+        if(!ch.kaiwas) ch.kaiwas = [];
+        ch.kaiwas.push(input);
+        document.getElementById('kaiwaInput').value = '';
+        saveToLocalStorage();
+        renderPageContent(ch);
+    } else {
+        alert("Silakan pilih bab di daftar isi terlebih dahulu!");
+    }
+}
+
+function renderSidebar() {
+    const list = document.getElementById('chapterList');
+    list.innerHTML = '';
+    bookData.forEach(ch => {
+        const li = document.createElement('li');
+        li.className = `chapter-item ${ch.id === activeChapterId ? 'active' : ''}`;
+        li.onclick = function() { loadChapter(ch.id); };
+        
+        const titleSpan = document.createElement('span');
+        titleSpan.className = 'chapter-title-text';
+        titleSpan.textContent = ch.title;
+        
+        const delBtn = document.createElement('button');
+        delBtn.textContent = 'Hapus';
+        delBtn.className = 'btn-del';
+        delBtn.onclick = function(e) {
+            e.stopPropagation();
+            deleteChapter(ch.id);
+        };
+        
+        li.appendChild(titleSpan);
+        li.appendChild(delBtn);
+        list.appendChild(li);
+    });
+}
+
+function loadChapter(id) {
+    activeChapterId = id;
+    renderSidebar();
+    const ch = bookData.find(c => c.id === id);
+    if(ch) {
+        document.getElementById('chapterTitle').value = ch.title || '';
+        document.getElementById('pageTitle').textContent = ch.title || 'Tanpa Judul';
+        renderPageContent(ch);
+    }
+}
+
+function renderPageContent(ch) {
+    const container = document.getElementById('pageContent');
+    container.innerHTML = '';
+    
+    if(!ch.kaiwas || ch.kaiwas.length === 0) {
+        container.innerHTML = '<p style="color:#888; font-style:italic;">Bab ini masih kosong. Silakan masukkan kalimat kaiwa baru di atas.</p>';
+        return;
+    }
+
+    ch.kaiwas.forEach((kaiwaText) => {
+        const row = document.createElement('div');
+        row.className = 'kaiwa-row';
+        
+        for (let char of kaiwaText) {
+            if (isKanji(char)) {
+                const data = kanjiDB[char] || { furigana: '', radikal: '' };
+                const ruby = document.createElement('ruby');
+                ruby.textContent = char;
+                ruby.onclick = function() { openKanjiModal(char); };
+                
+                const rt = document.createElement('rt');
+                rt.textContent = data.furigana || '';
+                if(data.radikal) ruby.title = `Arti Radikal: ${data.radikal}`;
+                
+                ruby.appendChild(rt);
+                row.appendChild(ruby);
+            } else {
+                row.appendChild(document.createTextNode(char));
+            }
+        }
+        container.appendChild(row);
+    });
+}
+
+function deleteChapter(id) {
+    if(confirm("Apakah Anda yakin ingin menghapus bab ini?")) {
+        bookData = bookData.filter(c => c.id !== id);
+        if(bookData.length === 0) {
+            bookData = [{ id: Date.now(), title: 'Bab 1', kaiwas: [] }];
+        }
+        saveToLocalStorage();
+        activeChapterId = bookData[0].id;
+        loadChapter(activeChapterId);
+    }
+}
+
+function openKanjiModal(kanji) {
+    activeKanji = kanji;
+    document.getElementById('modalKanjiTitle').textContent = `Pengaturan Kanji: ${kanji}`;
+    const existingData = kanjiDB[kanji] || { furigana: '', radikal: '' };
+    document.getElementById('inputFurigana').value = existingData.furigana;
+    document.getElementById('inputRadikal').value = existingData.radikal;
+    document.getElementById('kanjiModal').style.display = 'flex';
+}
+
+function closeModal() { document.getElementById('kanjiModal').style.display = 'none'; }
+
+function saveKanjiData() {
+    const furigana = document.getElementById('inputFurigana').value.trim();
+    const radikal = document.getElementById('inputRadikal').value.trim();
+    kanjiDB[activeKanji] = { furigana, radikal };
+    localStorage.setItem('myKanjiDB', JSON.stringify(kanjiDB));
+    closeModal();
+    const ch = bookData.find(c => c.id === activeChapterId);
+    if(ch) renderPageContent(ch);
+}
+
+function saveToLocalStorage() {
+    localStorage.setItem('myKaiwaBook', JSON.stringify(bookData));
+}
+
+function resetAplikasiTotal() {
+    if(confirm("Reset aplikasi?")) {
+        localStorage.clear();
+        location.reload();
+    }
+}
+
+// Menjalankan inisialisasi awal secara paksa agar tombol langsung aktif
+renderSidebar();
+loadChapter(activeChapterId);
